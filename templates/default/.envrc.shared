@@ -1,0 +1,17 @@
+watch_file flake.{nix,lock}
+
+# Write the project root path to a file in the nix store
+_use_shell_rootd="${PWD//\\/\\\\}"
+_use_shell_rootd="${_use_shell_rootd//\"/\\\"}"
+_use_shell_rootd="${_use_shell_rootd//$\{/\\$\{}"
+_use_shell_rootd="file+file://$(nix eval --raw --expr "builtins.toFile \"devenv-root\" \"$_use_shell_rootd\"")"
+
+# Wrapper for `use flake` for a specific shell
+use_shell() {
+  shell="$1"
+  shift
+
+  export DEVENV_IN_DIRENV_SHELL=true
+  use flake ".#$shell" --override-input devenv-root "$_use_shell_rootd" "$@" \
+    || echo "devenv \`$shell' could not be built. The environment was not loaded." >&2
+}
