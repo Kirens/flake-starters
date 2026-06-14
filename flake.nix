@@ -31,15 +31,32 @@
 
   outputs = baseInputs: {
     lib = rec {
-      perSystem = flakeInputs: module:
-        mkFlake flakeInputs { perSystem = module; };
+      perSystem = args: module:
+        mkFlake args { perSystem = module; };
 
-      mkFlake = flakeInputs: module:
+      /**
+        Setup the flake inheriting both the starter and flake inputs.
+
+        # Inputs
+        `args`
+        : Either an attrset of inputs or attrset of additional args
+        `args.inputs`
+        : Attrset of intpus
+        `args.lib`
+        : Function to extend nixpkgs lib
+
+        `module`
+        : A flake-parts module or file
+      */
+      mkFlake = args: module:
         let
+          libExtensionProp = "lib";
+          complexArgs = args ? "inputs" && args.inputs._type or null != "flake";
+
           cfgArgs =
-            if flakeInputs ? inputs
-            then flakeInputs
-            else { inputs = flakeInputs; };
+            if complexArgs
+            then removeAttrs args [libExtensionProp]
+            else { inputs = args; };
           config = cfgArgs // {
             inputs = baseInputs // cfgArgs.inputs // {
               self = cfgArgs.inputs.self // {
@@ -47,7 +64,38 @@
               };
             };
           };
-        in baseInputs.flake-parts.lib.mkFlake config {
+
+          # Extended lib
+          lib =
+            if complexArgs && args ? ${libExtensionProp}
+            then baseInputs.nixpkgs.lib.extend args.${libExtensionProp}
+            else baseInputs.nixpkgs.lib;
+
+          # Construct an attribute set of file stems -> corresponding file path
+          # This imitates how flake-parts provide module lists
+          getModuleFiles = dir:
+            with builtins;
+            let
+              files =
+                attrNames
+                  (filterAttrs (_: k: k == "regular") (readDir dir));
+              mkFileRef = fileName:
+                let
+                  stemLen = stringLength fileName - 4;
+                  otherFile = ".nix" != substring stemLen 4 fileName;
+                in if otherFile then null else {
+                  name = substring 0 stemLen fileName;
+                  value = dir + "/${fileName}";
+                };
+            in listToAttrs (filter (v: v != null) (map mkFileRef files));
+
+
+          flake-parts-lib = import "${baseInputs.flake-parts}/lib.nix" {
+            inherit lib;
+            builtinModules = getModuleFiles "${baseInputs.flake-parts}/modules";
+            extraModules = getModuleFiles "${baseInputs.flake-parts}/extras";
+          };
+        in flake-parts-lib.mkFlake config {
           imports = [ module ./module.nix ];
         };
     };
