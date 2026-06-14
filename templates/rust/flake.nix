@@ -1,5 +1,5 @@
 {
-  description = "";
+  description = "Rust project using flake-starters, direnv and rust-overlay";
 
   inputs = {
     devenv-root = { url = "file+file:///dev/null"; flake = false; };

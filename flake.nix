@@ -53,11 +53,11 @@
     };
 
     templates =
-      let mkDesc = n: d: { path = ./templates + "/${n}"; description = d; };
-      in builtins.mapAttrs mkDesc {
-        default = "Basic project using flake-starters and direnv";
-        node = "Javascript project flake-starters and direnv";
-        rust = "Rust project using flake-starters, direnv and rust-overlay";
-      };
+      builtins.mapAttrs
+        (name: _: rec {
+          path = ./templates + "/${name}";
+          inherit (import "${path}/flake.nix") description;
+        })
+        (builtins.readDir ./templates);
   };
 }
