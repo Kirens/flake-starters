@@ -76,6 +76,11 @@
           getModuleFiles = dir:
             with builtins;
             let
+              filterAttrs = builtins.filterAttrs or (pred: set:
+              	removeAttrs
+                  set 
+                  (filter (name: !pred name set.${name}) (attrNames set))
+              );
               files =
                 attrNames
                   (filterAttrs (_: k: k == "regular") (readDir dir));
